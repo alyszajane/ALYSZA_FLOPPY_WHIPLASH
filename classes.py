@@ -203,36 +203,67 @@ class Bird:
 
 class Background:
     """Background class for,
-    move and draw backgrounds
+    move and draw backgrounds with parallax scrolling
+    (back layer, mid layer, front layer)
     """
-    img = world['background']
-    width = img.get_width()
-    height = img.get_height()
-    velocity = 1
+    img_back = world['background']
+    img_mid = world['background']
+    img_front = world['background']
+    width = img_back.get_width()
+    height = img_back.get_height()
+    velocity_back = 0.5
+    velocity_mid = 1
+    velocity_front = 1
 
     def __init__(self):
-        self.background_x1 = 0
-        self.background_x2 = self.width
+        self.back_x1 = 0
+        self.back_x2 = self.width
+        self.mid_x1 = 0
+        self.mid_x2 = self.width
+        self.front_x1 = 0
+        self.front_x2 = self.width
 
     def move(self):
-        """move backgrounds with velocity
+        """move backgrounds with their respective velocities
         """
-        self.background_x1 -= self.velocity
-        self.background_x2 -= self.velocity
+        self.back_x1 -= self.velocity_back
+        self.back_x2 -= self.velocity_back
+        
+        self.mid_x1 -= self.velocity_mid
+        self.mid_x2 -= self.velocity_mid
+        
+        self.front_x1 -= self.velocity_front
+        self.front_x2 -= self.velocity_front
 
-        if self.background_x1 + self.width < 0:
-            self.background_x1 = self.background_x2 + self.width
-        if self.background_x2 + self.width < 0:
-            self.background_x2 = self.background_x1 + self.width
+        if self.back_x1 + self.width < 0:
+            self.back_x1 = self.back_x2 + self.width
+        if self.back_x2 + self.width < 0:
+            self.back_x2 = self.back_x1 + self.width
+        
+        if self.mid_x1 + self.width < 0:
+            self.mid_x1 = self.mid_x2 + self.width
+        if self.mid_x2 + self.width < 0:
+            self.mid_x2 = self.mid_x1 + self.width
+        
+        if self.front_x1 + self.width < 0:
+            self.front_x1 = self.front_x2 + self.width
+        if self.front_x2 + self.width < 0:
+            self.front_x2 = self.front_x1 + self.width
 
     def draw(self, window):
-        """draw backgrounds in screen
+        """draw backgrounds in screen with parallax effect
 
         Args:
             window (pygame surface): game display
         """
-        window.blit(self.img, (self.background_x1, 0))
-        window.blit(self.img, (self.background_x2, 0))
+        window.blit(self.img_back, (self.back_x1, 0))
+        window.blit(self.img_back, (self.back_x2, 0))
+        
+        window.blit(self.img_mid, (self.mid_x1, 0))
+        window.blit(self.img_mid, (self.mid_x2, 0))
+        
+        window.blit(self.img_front, (self.front_x1, 0))
+        window.blit(self.img_front, (self.front_x2, 0))
 
 
 class Floor:
