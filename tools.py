@@ -1,5 +1,6 @@
 """toolkit for game.
 """
+from os.path import join
 from typing import List
 import pygame
 
@@ -99,8 +100,18 @@ class Tools:
         Returns:
             tuple: all image(dict or etc)
         """
+        win_w, win_h = pygame.display.get_surface().get_size()
+        play_h = win_h - 100
         world = {}
-        world['background'] = self.setup_image((140, 256), (0, 0, 140, 256), preserve_ratio=False)
+        world['backBG'] = pygame.transform.scale(
+            pygame.image.load(join('data', 'backBG.png')).convert_alpha(),
+            (win_w, play_h))
+        world['midBG'] = pygame.transform.scale(
+            pygame.image.load(join('data', 'midBG.png')).convert_alpha(),
+            (win_w, play_h))
+        world['frontBG'] = pygame.transform.scale(
+            pygame.image.load(join('data', 'frontBG.png')).convert_alpha(),
+            (win_w, play_h))
         world['floor'] = self.setup_image((145, 56), (292, 0, 432, 56), preserve_ratio=False)
         world['pipe'] = self.setup_image((22, 140), (84, 323, 109, 482))
 
