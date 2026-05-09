@@ -101,19 +101,24 @@ class Tools:
             tuple: all image(dict or etc)
         """
         win_w, win_h = pygame.display.get_surface().get_size()
-        play_h = win_h - 100
         world = {}
         world['backBG'] = pygame.transform.scale(
             pygame.image.load(join('data', 'backBG.png')).convert_alpha(),
-            (win_w, play_h))
+            (win_w, win_h))
         world['midBG'] = pygame.transform.scale(
             pygame.image.load(join('data', 'midBG.png')).convert_alpha(),
-            (win_w, play_h))
+            (win_w, 320))
         world['frontBG'] = pygame.transform.scale(
             pygame.image.load(join('data', 'frontBG.png')).convert_alpha(),
-            (win_w, play_h))
+            (win_w, 400))
         world['floor'] = self.setup_image((145, 56), (292, 0, 432, 56), preserve_ratio=False)
         world['pipe'] = self.setup_image((22, 140), (84, 323, 109, 482))
+
+        # Load buildings from combined_sprite.png using exact visible bounds
+        combined_sprite = pygame.image.load(join('data', 'combined_sprite.png')).convert_alpha()
+        world['building1'] = self.setup_image((171, 491), (133, 37, 304, 528), source=combined_sprite)
+        world['building2'] = self.setup_image((358, 429), (104, 80, 462, 509), source=combined_sprite)
+        world['building3'] = self.setup_image((254, 383), (136, 79, 390, 462), source=combined_sprite)
 
         bird_images = {}
         bird_images['descend'] = self.setup_image((20, 14), (1, 490, 20, 504))
