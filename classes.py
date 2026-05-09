@@ -207,16 +207,17 @@ class Background:
     move and draw backgrounds with parallax scrolling
     (back layer, mid layer, front layer)
     """
-    img_back = pygame.image.load(join('data', 'backBG.png')).convert_alpha()
-    img_mid = pygame.image.load(join('data', 'midBG.png')).convert_alpha()
-    img_front = pygame.image.load(join('data', 'frontBG.png')).convert_alpha()
-    width = img_back.get_width()
-    height = img_back.get_height()
     velocity_back = 0.5
     velocity_mid = 1
     velocity_front = 1
 
     def __init__(self):
+        self.img_back = pygame.image.load(join('data', 'backBG.png')).convert_alpha()
+        self.img_mid = pygame.image.load(join('data', 'midBG.png')).convert_alpha()
+        self.img_front = pygame.image.load(join('data', 'frontBG.png')).convert_alpha()
+        self.width = self.img_back.get_width()
+        self.height = self.img_back.get_height()
+        
         self.back_x1 = 0
         self.back_x2 = self.width
         self.mid_x1 = 0
