@@ -1,0 +1,24 @@
+"""constant variable in the game
+"""
+
+from os.path import join
+import pygame
+from tools import Tools
+
+pygame.init()
+clock = pygame.time.Clock()
+
+
+WINDOW_WIDTH, WINDOW_HEIGHT = 1280, 768
+FLOOR_HEIGHT = 145
+BEST_SCORE = 0
+PIPE_GAP = 200
+MAINMENU_ACTIVE = True
+GAME_TICK = 30
+
+WINDOW = pygame.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
+pygame.display.set_caption('Flappy Bird')
+
+toolkit = Tools(WINDOW, join('data', 'sprites.png'))
+world, bird_images, messages, buttons, numbers_img, scoreboard_img, icon = toolkit.load_images()
+pygame.display.set_icon(icon)
