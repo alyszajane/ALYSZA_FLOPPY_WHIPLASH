@@ -57,6 +57,7 @@ class Pipe:
     """
     PIPE_BOTTOM = world['pipe']
     PIPE_TOP = pygame.transform.flip(world['pipe'], False, True)
+    BUILDINGS = [world['building1'], world['building2'], world['building3']]
     GAP = PIPE_GAP
     velocity = 6
 
@@ -66,6 +67,8 @@ class Pipe:
         self.top = 0
         self.bottom = 0
         self.passed = False
+        self.building = None
+        self.current_building = None
         self.set_height()
 
     def set_height(self):
@@ -75,11 +78,23 @@ class Pipe:
         self.gap = self.GAP + randrange(-60, 61)
         self.top = self.height - self.PIPE_TOP.get_height()
         self.bottom = self.height + self.gap
+        self.building = randrange(len(self.BUILDINGS))
 
     def move(self):
         """move the pipes with velocity number
         """
         self.x_pos -= self.velocity
+
+    def get_building_surface(self):
+        building = self.BUILDINGS[self.building]
+        remaining_height = WINDOW_HEIGHT - self.bottom
+        target_height = max(1, int(remaining_height * 0.92))
+        aspect_ratio = building.get_width() / building.get_height()
+        target_width = int(target_height * aspect_ratio)
+        target_width = max(120, min(target_width, 220))
+        self.current_building = pygame.transform.scale(building, (target_width, target_height))
+        self.current_building_y = WINDOW_HEIGHT - target_height
+        return self.current_building
 
     def draw(self, window):
         """draw the pipes in screen
@@ -87,8 +102,18 @@ class Pipe:
         Args:
             window (pygame surface): display of the game
         """
-        window.blit(self.PIPE_TOP, (self.x_pos, self.top))
-        window.blit(self.PIPE_BOTTOM, (self.x_pos, self.bottom))
+        # Draw top pipe, extending to screen top to fill any gaps
+        pipe_height = self.PIPE_TOP.get_height()
+        top_draw_y = self.top
+        
+        while top_draw_y > -pipe_height:
+            window.blit(self.PIPE_TOP, (self.x_pos, top_draw_y))
+            top_draw_y -= pipe_height
+
+        # Draw building slightly smaller and anchored to the bottom
+        scaled_building = self.get_building_surface()
+        window.blit(scaled_building, (self.x_pos, self.current_building_y))
+
 
     def collide(self, bird: object) -> bool:
         """check collide the bird to pipes
@@ -101,12 +126,13 @@ class Pipe:
         """
         bird_mask = pygame.mask.from_surface(bird.img)
         top_mask = pygame.mask.from_surface(self.PIPE_TOP)
-        bottom_mask = pygame.mask.from_surface(self.PIPE_BOTTOM)
+        building_surface = self.current_building or self.get_building_surface()
+        building_mask = pygame.mask.from_surface(building_surface)
         top_offset = (self.x_pos - bird.x_pos, self.top - round(bird.y_pos))
-        bottom_offset = (self.x_pos - bird.x_pos, self.bottom - round(bird.y_pos))
+        building_offset = (self.x_pos - bird.x_pos, self.current_building_y - round(bird.y_pos))
 
         t_point = bird_mask.overlap(top_mask, top_offset)
-        b_point = bird_mask.overlap(bottom_mask, bottom_offset)
+        b_point = bird_mask.overlap(building_mask, building_offset)
 
         if b_point or t_point:
             return True
@@ -159,7 +185,7 @@ class Bird:
     def check_crashed(self):
         """check for crashed bird, if it falls or goes up a lot
         """
-        if self.y_pos + self.img.get_height() >= WINDOW_HEIGHT - FLOOR_HEIGHT:
+        if self.y_pos + self.img.get_height() >= WINDOW_HEIGHT:
             self.crashed = True
 
         if self.y_pos < - self.img.get_height() / 4:
@@ -251,11 +277,15 @@ class Background:
         window.blit(self.img_back, (self.back_x1, 0))
         window.blit(self.img_back, (self.back_x2, 0))
 
-        window.blit(self.img_mid, (self.mid_x1, 0))
-        window.blit(self.img_mid, (self.mid_x2, 0))
+        # Draw midBG at the bottom of screen
+        mid_y = WINDOW_HEIGHT - self.img_mid.get_height()
+        window.blit(self.img_mid, (self.mid_x1, mid_y))
+        window.blit(self.img_mid, (self.mid_x2, mid_y))
 
-        window.blit(self.img_front, (self.front_x1, 0))
-        window.blit(self.img_front, (self.front_x2, 0))
+        # Draw frontBG a little higher than midBG
+        front_y = WINDOW_HEIGHT - self.img_mid.get_height() - self.img_front.get_height()
+        window.blit(self.img_front, (self.front_x1, front_y))
+        window.blit(self.img_front, (self.front_x2, front_y))
 
 
 class Floor:
