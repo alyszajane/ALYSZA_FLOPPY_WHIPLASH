@@ -5,6 +5,7 @@ from random import randrange
 from constant import pygame, BEST_SCORE
 from constant import WINDOW_HEIGHT, FLOOR_HEIGHT, PIPE_GAP
 from constant import world, bird_images, numbers_img, scoreboard_img
+from os.path import join
 
 
 class Score:
@@ -206,9 +207,9 @@ class Background:
     move and draw backgrounds with parallax scrolling
     (back layer, mid layer, front layer)
     """
-    img_back = world['background']
-    img_mid = world['background']
-    img_front = world['background']
+    img_back = pygame.image.load(join('lvl_2', 'backBG.png')).convert_alpha()
+    img_mid = pygame.image.load(join('lvl_2', 'midBG.png')).convert_alpha()
+    img_front = pygame.image.load(join('lvl_2', 'frontBG.png')).convert_alpha()
     width = img_back.get_width()
     height = img_back.get_height()
     velocity_back = 0.5
