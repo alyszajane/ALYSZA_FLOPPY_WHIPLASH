@@ -92,6 +92,7 @@ def run():
         if keys[pygame.K_SPACE] or pygame.mouse.get_pressed()[0] == 1:
             bird.jump()
 
+        add_pipe = False
         if bird.crashed:
             toolkit.update_display(background, pipes, bird, floor, score)
             gameover()
@@ -99,7 +100,6 @@ def run():
             background.move()
             floor.move()
             bird.move()
-            add_pipe = False
             for pipe in pipes:
                 pipe.move()
                 if pipe.collide(bird):
