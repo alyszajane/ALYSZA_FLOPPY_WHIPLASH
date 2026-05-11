@@ -7,9 +7,28 @@ from os.path import join
 from constant import pygame, WINDOW, WINDOW_WIDTH, WINDOW_HEIGHT, ribbon_image
 from constant import clock, GAME_TICK, MAINMENU_ACTIVE
 from constant import toolkit, messages, buttons
-from classes import Score, Pipe, Bird, Background, Floor, Ribbon, DynamicLighting, VictoryPlatform
+from classes import Score, Pipe, Bird, Background, Floor, Ribbon, DynamicLighting
 
 MUSIC_END_EVENT = pygame.USEREVENT + 1
+
+
+def _load_font(size):
+    """Load PressStart2P font with fallback to pygame default."""
+    path = pygame.font.match_font('pressstart2p')
+    if path:
+        return pygame.font.Font(path, size)
+    try:
+        return pygame.font.Font(join('data', 'PressStart2P.ttf'), size)
+    except Exception:
+        return pygame.font.Font(None, size)
+
+
+def _draw_shadow_text(surface, font, text, color, x, y, shadow_color=(70, 70, 70), offset=2):
+    """Render text with a subtle grey shadow underneath."""
+    shadow = font.render(text, True, shadow_color)
+    surface.blit(shadow, (x + offset, y + offset))
+    label = font.render(text, True, color)
+    surface.blit(label, (x, y))
 
 
 def gameover():
@@ -43,17 +62,14 @@ def gameover():
 def victory_screen():
     """Display victory screen when player completes the level
     """
+    font_big = _load_font(32)
     WINDOW.blit(messages['game_title'],
                 (WINDOW_WIDTH / 2 - messages['game_title'].get_width() / 2,
                  100)
                 )
-
-    # Draw "VICTORY" or similar message
-    victory_text = pygame.font.Font(None, 72).render("VICTORY!", True, (255, 215, 0))
-    WINDOW.blit(victory_text,
-                (WINDOW_WIDTH / 2 - victory_text.get_width() / 2,
-                 200)
-                )
+    victory_surf = font_big.render("VICTORY!", True, (255, 215, 0))
+    _draw_shadow_text(WINDOW, font_big, "VICTORY!", (255, 215, 0),
+                      WINDOW_WIDTH // 2 - victory_surf.get_width() // 2, 200)
 
     while True:
         for event in pygame.event.get():
@@ -73,12 +89,20 @@ def victory_screen():
 def lose_screen():
     """Display when the player runs out of time without reaching 25 points."""
     pygame.mixer.music.stop()
-    font_big = pygame.font.Font(None, 52)
-    font_mid = pygame.font.Font(None, 36)
-    line1 = font_big.render("You loose,", True, (255, 80, 80))
-    line2 = font_mid.render("not enough music to save the world!", True, (255, 130, 130))
-    WINDOW.blit(line1, (WINDOW_WIDTH / 2 - line1.get_width() / 2, 240))
-    WINDOW.blit(line2, (WINDOW_WIDTH / 2 - line2.get_width() / 2, 310))
+    font_big = _load_font(32)
+    font_mid = _load_font(18)
+    line1 = "You lose!"
+    line2 = "Not enough music"
+    line3 = "to save the world!"
+    w1 = font_big.render(line1, True, (0, 0, 0)).get_width()
+    w2 = font_mid.render(line2, True, (0, 0, 0)).get_width()
+    w3 = font_mid.render(line3, True, (0, 0, 0)).get_width()
+    _draw_shadow_text(WINDOW, font_big, line1, (255, 80, 80),
+                      WINDOW_WIDTH // 2 - w1 // 2, WINDOW_HEIGHT // 2 - 80)
+    _draw_shadow_text(WINDOW, font_mid, line2, (255, 140, 140),
+                      WINDOW_WIDTH // 2 - w2 // 2, WINDOW_HEIGHT // 2 + 10)
+    _draw_shadow_text(WINDOW, font_mid, line3, (255, 140, 140),
+                      WINDOW_WIDTH // 2 - w3 // 2, WINDOW_HEIGHT // 2 + 50)
 
     while True:
         for event in pygame.event.get():
@@ -96,10 +120,16 @@ def lose_screen():
 def win_screen():
     """Display when the player reaches 25 points — then launch the cutscene."""
     pygame.mixer.music.stop()
-    font_big = pygame.font.Font(None, 52)
-    font_load = pygame.font.Font(None, 36)
-    msg = font_big.render("Wow! The planet has finally been saved!", True, (255, 215, 0))
-    WINDOW.blit(msg, (WINDOW_WIDTH / 2 - msg.get_width() / 2, 250))
+    font_big = _load_font(26)
+    font_load = _load_font(16)
+    line = "Wow! The planet has"
+    line2 = "finally been saved!"
+    w = font_big.render(line, True, (0, 0, 0)).get_width()
+    w2 = font_big.render(line2, True, (0, 0, 0)).get_width()
+    _draw_shadow_text(WINDOW, font_big, line, (255, 215, 0),
+                      WINDOW_WIDTH // 2 - w // 2, WINDOW_HEIGHT // 2 - 60)
+    _draw_shadow_text(WINDOW, font_big, line2, (255, 215, 0),
+                      WINDOW_WIDTH // 2 - w2 // 2, WINDOW_HEIGHT // 2 - 10)
     pygame.display.update()
 
     for frame in range(90):
@@ -108,10 +138,12 @@ def win_screen():
                 pygame.quit()
                 sys.exit()
         dots = '.' * ((frame // 15) % 4)
-        load_surf = font_load.render(f'Loading cutscene{dots}', True, (200, 200, 255))
+        load_text = f'Loading cutscene{dots}'
+        lw = font_load.render(load_text, True, (0, 0, 0)).get_width()
         pygame.draw.rect(WINDOW, (0, 0, 0),
-                         (WINDOW_WIDTH // 2 - 200, 330, 400, 40))
-        WINDOW.blit(load_surf, (WINDOW_WIDTH / 2 - load_surf.get_width() / 2, 335))
+                         (WINDOW_WIDTH // 2 - 250, 330, 500, 50))
+        _draw_shadow_text(WINDOW, font_load, load_text, (200, 200, 255),
+                          WINDOW_WIDTH // 2 - lw // 2, 340)
         pygame.display.update()
         clock.tick(30)
 
@@ -177,10 +209,7 @@ def run():
 
     bird = Bird(80, 350, ribbon=ribbon)
 
-    # Initialize victory platform (initially inactive)
-    victory_platform = None
-
-    HEAD_START_PX = 300 
+    HEAD_START_PX = 300
     pipes = []
     spawn_x = WINDOW_WIDTH + HEAD_START_PX
     while spawn_x < WINDOW_WIDTH + 400 + HEAD_START_PX:
@@ -189,11 +218,7 @@ def run():
         spawn_x += pipe.width
 
     # Initialization for music tracking
-    music_started = False
-    music_elapsed_time = 0
-    total_music_duration = 0  # Will be set when music starts
     level_completed = False
-    celebration_started = False
     distance_traveled = 0
     hold_frames = 0
     hold_threshold = 5
@@ -203,7 +228,6 @@ def run():
             pygame.mixer.music.load(join('data', 'hip.mp3'))
             pygame.mixer.music.set_endevent(MUSIC_END_EVENT)
             pygame.mixer.music.play()
-            music_started = True
         except pygame.error as error:
             print(f"Warning: could not load data/hip.mp3: {error}")
 
@@ -225,9 +249,6 @@ def run():
             # This is a placeholder - integrate with your actual music/audio system
             if event.type == MUSIC_END_EVENT:
                 level_completed = True
-                # Create victory platform at current bird position
-                victory_platform = VictoryPlatform(bird.x_pos + WINDOW_WIDTH)
-                victory_platform.set_active()
 
         # INPUT HANDLING
         keys = pygame.key.get_pressed()
@@ -238,8 +259,7 @@ def run():
             hold_frames = 0
 
         if hold_frames >= hold_threshold:
-            if not bird.is_celebrating:  # Can't jump while celebrating
-                bird.jump()
+            bird.jump()
 
         # TIMER CHECK
         if not MAINMENU_ACTIVE:
@@ -252,40 +272,20 @@ def run():
 
         # GAME STATE CHECK
         if bird.crashed:
-            # Display with current color restoration
             current_alpha = lighting.get_alpha()
             toolkit.update_display_with_lighting(background, pipes, floor, bird, score, ribbon, current_alpha)
             gameover()
 
-        elif level_completed and celebration_started:
-            # Victory sequence - bird celebrating
-            current_alpha = 255  # Full color at victory
-            bird.move()
-            if victory_platform and victory_platform.is_active:
-                victory_platform.move()
-            toolkit.update_display_with_lighting(background, pipes, floor, bird, score, ribbon, current_alpha, victory_platform)
-
-            # Check if celebration is complete
-            if not bird.is_celebrating:
-                # Celebration finished, show victory screen
-                victory_screen()
-
         else:
             # Normal gameplay
-            # Update dynamic color restoration based on bird position
             distance_traveled += Pipe.velocity
             lighting.update(distance_traveled)
             current_alpha = lighting.get_alpha()
 
-            # Update game state
             score.update(Pipe.velocity)
             background.move()
             floor.move()
             bird.move()
-
-            # Move victory platform if it exists
-            if victory_platform and victory_platform.is_active:
-                victory_platform.move()
 
             # Update pipes
             for pipe in pipes:
@@ -294,7 +294,6 @@ def run():
                 if collected_pts:
                     score.add_note_points(collected_pts, bird.x_pos, bird.y_pos)
                 if pipe.collide(bird):
-                    # Collision with pipe - game over
                     toolkit.update_display_with_lighting(background, pipes, floor, bird, score, ribbon, current_alpha)
                     gameover()
 
@@ -309,18 +308,12 @@ def run():
                     pipes.append(new_pipe)
                     right_edge += new_pipe.width
 
-            # Check if bird landed on victory platform
-            if victory_platform and victory_platform.is_active and victory_platform.check_landing(bird):
-                if not celebration_started:
-                    celebration_started = True
-                    bird.celebration_jump()  # Start auto-jumping celebration
-
             if MAINMENU_ACTIVE:
                 toolkit.update_display_with_lighting(background, pipes, floor, bird, score, ribbon, current_alpha)
                 mainmenu()
 
             # Render current frame
-            toolkit.update_display_with_lighting(background, pipes, floor, bird, score, ribbon, current_alpha, victory_platform)
+            toolkit.update_display_with_lighting(background, pipes, floor, bird, score, ribbon, current_alpha)
 
 
 if __name__ == '__main__':
