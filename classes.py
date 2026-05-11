@@ -8,6 +8,25 @@ from constant import WINDOW_HEIGHT, WINDOW_WIDTH, FLOOR_HEIGHT, PIPE_GAP
 from constant import world, bird_images, numbers_img, scoreboard_img
 
 
+def _load_font(size):
+    """Load PressStart2P font with fallback to pygame default."""
+    path = pygame.font.match_font('pressstart2p')
+    if path:
+        return pygame.font.Font(path, size)
+    try:
+        return pygame.font.Font(join('data', 'PressStart2P.ttf'), size)
+    except Exception:
+        return pygame.font.Font(None, size)
+
+
+def _draw_shadow_text(surface, font, text, color, x, y, shadow_color=(70, 70, 70), offset=2):
+    """Render text with a subtle grey shadow underneath."""
+    shadow = font.render(text, True, shadow_color)
+    surface.blit(shadow, (x + offset, y + offset))
+    label = font.render(text, True, color)
+    surface.blit(label, (x, y))
+
+
 def make_powerless_surface(surface):
     """Create a dark monochrome copy once instead of filtering every frame."""
     powerless = pygame.transform.grayscale(surface).convert_alpha()
@@ -167,7 +186,7 @@ class FloatingText:
 
     def __init__(self, text, x, y):
         if FloatingText._font is None:
-            FloatingText._font = pygame.font.Font(None, 36)
+            FloatingText._font = _load_font(16)
         self.text = text
         self.x = float(x)
         self.y = float(y)
@@ -181,7 +200,10 @@ class FloatingText:
         self.alpha = max(0, int(255 * self.life / 55))
 
     def draw(self, window):
-        surf = self._font.render(self.text, True, (255, 240, 80))
+        shadow = self._font.render(self.text, True, (70, 70, 70))
+        shadow.set_alpha(self.alpha)
+        window.blit(shadow, (int(self.x) + 2, int(self.y) + 2))
+        surf = self._font.render(self.text, True, (210, 160, 255))
         surf.set_alpha(self.alpha)
         window.blit(surf, (int(self.x), int(self.y)))
 
@@ -198,21 +220,42 @@ class Score:
     GOAL = 25
     numbers = numbers_img
     scoreboard = scoreboard_img
-    _note_icon = None
+    _board_img = None
+    _notepoints_img = None
     _font_med = None
     _font_sm = None
+
+    HUD_W = 320
+    HUD_H = 60
+    BOARD_H = 90
 
     def __init__(self):
         self.note_points = 0
         self.distance = 0
         self.floating_texts = []
-        if Score._note_icon is None:
-            raw = pygame.image.load(join('data', 'note.png')).convert_alpha()
-            Score._note_icon = pygame.transform.scale(raw, (38, 38))
+        if Score._notepoints_img is None:
+            try:
+                raw = pygame.image.load(join('data', 'notepoints.png')).convert_alpha()
+                nw, nh = raw.get_size()
+                natural_h = max(50, int(Score.HUD_W * nh / nw))
+                Score._notepoints_img = pygame.transform.smoothscale(raw, (Score.HUD_W, natural_h))
+                Score.HUD_H = natural_h
+            except Exception:
+                Score._notepoints_img = None
+        if Score._board_img is None:
+            try:
+                raw = pygame.image.load(join('data', 'board.png')).convert_alpha()
+                bw, bh = raw.get_size()
+                # Board is taller than notepoints — it also covers the distance text row
+                board_h = Score.HUD_H + 34
+                Score._board_img = pygame.transform.smoothscale(raw, (Score.HUD_W, board_h))
+                Score.BOARD_H = board_h
+            except Exception:
+                Score._board_img = None
         if Score._font_med is None:
-            Score._font_med = pygame.font.Font(None, 30)
+            Score._font_med = _load_font(18)
         if Score._font_sm is None:
-            Score._font_sm = pygame.font.Font(None, 26)
+            Score._font_sm = _load_font(14)
 
     def add_score(self):
         """Legacy method — kept for compatibility."""
@@ -231,57 +274,60 @@ class Score:
         self.floating_texts = [ft for ft in self.floating_texts if not ft.dead]
 
     def draw(self, window):
-        """Draw the meter HUD: note icon + progress bar + distance."""
+        """Draw the meter HUD using board.png + notepoints.png."""
         global BEST_SCORE
         hud_x, hud_y = 16, 16
-        icon_size = 38
-        bar_x = hud_x + icon_size + 10
-        bar_y = hud_y + 8
-        bar_w = 176
-        bar_h = 22
+        board_h = self._board_img.get_height() if self._board_img else self.HUD_H + 34
 
-        # Placeholder sprite: music note icon
-        if self._note_icon:
-            window.blit(self._note_icon, (hud_x, hud_y))
+        # --- pill-shaped drop shadow that matches board.png ---
+        shw = self.HUD_W + 8
+        shh = board_h + 8
+        shadow_surf = pygame.Surface((shw, shh), pygame.SRCALPHA)
+        pygame.draw.rect(shadow_surf, (0, 0, 0, 65),
+                         (0, 0, shw, shh), border_radius=shh // 2)
+        window.blit(shadow_surf, (hud_x + 3, hud_y + 5))
 
-        # Bar background — lavender rounded rectangle
-        pygame.draw.rect(window, (210, 200, 240), (bar_x, bar_y, bar_w, bar_h), border_radius=11)
-        # Inner shine strip
-        pygame.draw.rect(window, (240, 240, 255), (bar_x + 3, bar_y + 3, bar_w - 6, 7), border_radius=8)
+        # --- board.png (full-height background pill) ---
+        if self._board_img:
+            window.blit(self._board_img, (hud_x, hud_y))
 
-        # Progress fill — purple
+        # --- progress fill — hard-clipped so it cannot overflow ---
+        # bar rect targets the interior of notepoints dotted box
+        bar_x = hud_x + int(self.HUD_W * 0.28)
+        bar_y = hud_y + int(self.HUD_H * 0.12)
+        bar_w = int(self.HUD_W * 0.70)
+        bar_h = int(self.HUD_H * 0.76)
         fill_ratio = min(1.0, self.note_points / self.GOAL)
-        fill_w = max(0, int((bar_w - 4) * fill_ratio))
+        fill_w = max(0, int(bar_w * fill_ratio))
+
+        old_clip = window.get_clip()
+        window.set_clip(pygame.Rect(bar_x, bar_y, bar_w, bar_h))
         if fill_w > 0:
-            pygame.draw.rect(
-                window, (160, 80, 210),
-                (bar_x + 2, bar_y + 2, fill_w, bar_h - 4),
-                border_radius=9
-            )
+            pygame.draw.rect(window, (150, 70, 200),
+                             (bar_x, bar_y, fill_w, bar_h))
+        window.set_clip(old_clip)
 
-        # Dotted border (pixel-art style)
-        dot_gap = 6
-        for i in range(0, bar_w, dot_gap):
-            pygame.draw.rect(window, (200, 120, 230), (bar_x + i, bar_y, 3, 2))
-            pygame.draw.rect(window, (200, 120, 230), (bar_x + i, bar_y + bar_h - 2, 3, 2))
-        for i in range(0, bar_h, dot_gap):
-            pygame.draw.rect(window, (200, 120, 230), (bar_x, bar_y + i, 2, 3))
-            pygame.draw.rect(window, (200, 120, 230), (bar_x + bar_w - 2, bar_y + i, 2, 3))
+        # --- notepoints.png on top — its border frames the fill perfectly ---
+        if self._notepoints_img:
+            window.blit(self._notepoints_img, (hud_x, hud_y))
 
-        # Points text centred on bar
-        pts_surf = self._font_med.render(f'{self.note_points} / {self.GOAL}', True, (255, 255, 255))
-        window.blit(
-            pts_surf,
-            (bar_x + bar_w // 2 - pts_surf.get_width() // 2,
-             bar_y + bar_h // 2 - pts_surf.get_height() // 2)
-        )
+        # --- points text centred on bar ---
+        pts_text = f'{self.note_points}/{self.GOAL}'
+        tw, th = self._font_med.size(pts_text)
+        cx = bar_x + bar_w // 2 - tw // 2
+        cy = bar_y + bar_h // 2 - th // 2
+        pts_shad = self._font_med.render(pts_text, True, (50, 50, 50))
+        pts_surf = self._font_med.render(pts_text, True, (255, 255, 255))
+        window.blit(pts_shad, (cx + 1, cy + 1))
+        window.blit(pts_surf, (cx, cy))
 
-        # Distance text below
+        # --- distance text inside the board area below the notepoints image ---
         dist_m = self.distance // 60
-        dist_surf = self._font_sm.render(f'Distance: {dist_m}m', True, (220, 200, 255))
-        window.blit(dist_surf, (hud_x, hud_y + icon_size + 6))
+        dist_text = f'{dist_m}m'
+        _draw_shadow_text(window, self._font_sm, dist_text, (210, 185, 255),
+                          hud_x + 10, hud_y + self.HUD_H + 6)
 
-        # Floating '+N' labels
+        # --- floating '+N' labels ---
         for ft in self.floating_texts:
             ft.draw(window)
 
@@ -650,7 +696,7 @@ class Bird:
     def check_crashed(self):
         """check for crashed bird, if it falls or goes up a lot
         """
-        if self.y_pos + self.img.get_height() >= WINDOW_HEIGHT:
+        if self.y_pos >= WINDOW_HEIGHT:
             self.crashed = True
 
         if self.y_pos < - self.img.get_height() / 4:
@@ -698,6 +744,7 @@ class Bird:
             (self.x_pos, self.y_pos),
             color_amount
         )
+
 
 class Background:
     """Background class for,
