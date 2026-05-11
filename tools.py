@@ -32,14 +32,50 @@ class Tools:
 
     def update_display(self, *objects):
         """update display with *objects
+
+        Proper drawing order:
+        1. Background
+        2. Pipes (obstacles)
+        3. Ribbon trail
+        4. Bird
+        5. Floor
+        6. Score/HUD
         """
         for object_ in objects:
-            if isinstance(object_, list):
+            # Handle Ribbon specially - draw BEFORE bird but after pipes
+            if object_.__class__.__name__ == 'Ribbon':
+                object_.draw(self.window)
+            elif isinstance(object_, list):
+                # This handles pipes list
                 for obj in object_:
                     obj.draw(self.window)
             else:
+                # This handles Background, Bird, Score, Floor
                 object_.draw(self.window)
 
+        pygame.display.update()
+
+    def update_display_with_lighting(
+            self, background, pipes, floor, bird, score, ribbon, alpha, victory_platform=None):
+        """Draw one frame with the world's color returning over time."""
+        color_amount = max(0, min(255, int(alpha)))
+
+        background.draw(self.window, color_amount)
+
+        for pipe in pipes:
+            pipe.draw(self.window, color_amount)
+
+        if victory_platform:
+            victory_platform.draw(self.window, color_amount)
+
+        if ribbon:
+            ribbon.draw(self.window, color_amount)
+
+        bird.draw(self.window, color_amount)
+
+        floor.draw(self.window, color_amount)
+
+        score.draw(self.window)
         pygame.display.update()
 
     @staticmethod
@@ -70,6 +106,13 @@ class Tools:
             new_height = int(image.get_size()[1] * ratio)
 
         return pygame.transform.scale(image, (new_width, new_height))
+
+    @staticmethod
+    def make_powerless_image(image):
+        """Create a cached dark monochrome version of an image."""
+        powerless = pygame.transform.grayscale(image).convert_alpha()
+        powerless.fill((78, 78, 78, 255), special_flags=pygame.BLEND_RGBA_MULT)
+        return powerless
 
     def setup_image(self, size: tuple, positions: List[tuple], scale=1, source=None, preserve_ratio=True):
         """setup the image
@@ -105,26 +148,42 @@ class Tools:
         world['backBG'] = pygame.transform.scale(
             pygame.image.load(join('data', 'backBG.png')).convert_alpha(),
             (win_w, win_h))
+        world['backBG_powerless'] = self.make_powerless_image(world['backBG'])
         world['midBG'] = pygame.transform.scale(
             pygame.image.load(join('data', 'midBG.png')).convert_alpha(),
             (win_w, 320))
+        world['midBG_powerless'] = self.make_powerless_image(world['midBG'])
         world['frontBG'] = pygame.transform.scale(
             pygame.image.load(join('data', 'frontBG.png')).convert_alpha(),
             (win_w, 400))
+        world['frontBG_powerless'] = self.make_powerless_image(world['frontBG'])
         world['floor'] = self.setup_image((145, 56), (292, 0, 432, 56), preserve_ratio=False)
         world['pipe'] = self.setup_image((22, 140), (84, 323, 109, 482))
 
         # Load buildings from combined_sprite.png using exact visible bounds
         combined_sprite = pygame.image.load(join('data', 'combined_sprite.png')).convert_alpha()
-        world['building1'] = self.setup_image((171, 491), (133, 37, 304, 528), source=combined_sprite)
-        world['building2'] = self.setup_image((358, 429), (104, 80, 462, 509), source=combined_sprite)
-        world['building3'] = self.setup_image((254, 383), (136, 79, 390, 462), source=combined_sprite)
+        world['building_top'] = pygame.image.load(join('data', 'building.png')).convert_alpha()
+        world['building_top_powerless'] = self.make_powerless_image(world['building_top'])
+        world['building_bottom'] = pygame.image.load(join('data', 'building.png')).convert_alpha()
+        world['building_bottom_powerless'] = self.make_powerless_image(world['building_bottom'])
+        player_img = pygame.image.load(join('data', 'player.png')).convert_alpha()
+        player_scale = 0.1
+        player_img = pygame.transform.smoothscale(
+            player_img,
+            (
+                int(player_img.get_width() * player_scale),
+                int(player_img.get_height() * player_scale)
+            )
+        )
 
-        bird_images = {}
-        bird_images['descend'] = self.setup_image((20, 14), (1, 490, 20, 504))
-        bird_images['idle'] = self.setup_image((20, 14), (29, 490, 48, 504))
-        bird_images['ascend'] = self.setup_image((20, 14), (57, 490, 76, 504))
-
+        bird_images = {
+        "idle": player_img,
+        "idle_powerless": self.make_powerless_image(player_img),
+        "ascend": player_img,
+        "ascend_powerless": self.make_powerless_image(player_img),
+        "descend": player_img,
+        "descend_powerless": self.make_powerless_image(player_img),
+    }
         messages = {}
         messages['game_title'] = self.setup_image(
             (92, 24), (350, 90, 440, 115))
