@@ -71,13 +71,18 @@ class Ribbon:
         self.base_width = max(10, ribbon_image.get_height() * 0.3)
         self.tail_width = max(5, ribbon_image.get_height() * 0.3)
 
-    def update(self, bird_x, bird_y, bird_width, bird_height):
-        """Update ribbon trail with bird's current position"""
+    def update(self, bird_x, bird_y, bird_width, bird_height, ribbon_x=None, ribbon_y=None):
+        """Update ribbon trail.
+
+        If ribbon_x/ribbon_y are provided, they are used as the attachment point.
+        Otherwise, the attachment point is computed from bird_x/bird_y and size.
+        """
         for segment in self.segments:
             segment['x'] -= self.velocity
 
-        ribbon_x = bird_x + (bird_width * 0.18)
-        ribbon_y = bird_y + (bird_height / 2)
+        if ribbon_x is None or ribbon_y is None:
+            ribbon_x = bird_x + (bird_width * 0.25)
+            ribbon_y = bird_y + (bird_height / 2)
 
         new_segment = {
             'x': ribbon_x,
@@ -199,66 +204,86 @@ class FloatingText:
         self.life -= 1
         self.alpha = max(0, int(255 * self.life / 55))
 
-    def draw(self, window):
-        shadow = self._font.render(self.text, True, (70, 70, 70))
-        shadow.set_alpha(self.alpha)
-        window.blit(shadow, (int(self.x) + 2, int(self.y) + 2))
-        surf = self._font.render(self.text, True, (210, 160, 255))
-        surf.set_alpha(self.alpha)
-        window.blit(surf, (int(self.x), int(self.y)))
-
     @property
     def dead(self):
         return self.life <= 0
 
+    def draw(self, window):
+        text = self._font.render(self.text, True, (255, 245, 255))
+        text.set_alpha(self.alpha)
+        shadow = self._font.render(self.text, True, (160, 70, 180))
+        shadow.set_alpha(self.alpha)
+        window.blit(shadow, (int(self.x) + 2, int(self.y) + 2))
+        window.blit(text, (int(self.x), int(self.y)))
+
 
 class Score:
-    """Score class — music note points meter with distance tracker.
+    """Score class - music note points meter with distance tracker.
 
     Goal: collect 25 points worth of notes (each note is worth 3, 4, or 5).
     """
     GOAL = 25
     numbers = numbers_img
     scoreboard = scoreboard_img
-    _board_img = None
-    _notepoints_img = None
+    _fill_img = None
+    _frame_img = None
     _font_med = None
     _font_sm = None
+    _settings_img = None
 
-    HUD_W = 320
-    HUD_H = 60
-    BOARD_H = 90
+    SPRITE_W = 380
+    SPRITE_H = 105
+    HUD_W = SPRITE_W
+    HUD_H = 300
+    BAR_X_OFF = 102
+    BAR_Y_OFF = 36
+    BAR_W = 250
+    BAR_H = 35
+
+    # Score text font size (used for the X/GOAL label)
+    SCORE_FONT_SIZE = 20
+
+    # Distance label position inside the HUD surface
+    DIST_TEXT_X = 35
+    DIST_TEXT_Y = SPRITE_H + 2
+
+    # Distance label font size
+    DIST_FONT_SIZE = 30
+
+    SETTINGS_ICON_SIZE = 52
 
     def __init__(self):
         self.note_points = 0
         self.distance = 0
         self.floating_texts = []
-        if Score._notepoints_img is None:
-            try:
-                raw = pygame.image.load(join('data', 'notepoints.png')).convert_alpha()
-                nw, nh = raw.get_size()
-                natural_h = max(50, int(Score.HUD_W * nh / nw))
-                Score._notepoints_img = pygame.transform.smoothscale(raw, (Score.HUD_W, natural_h))
-                Score.HUD_H = natural_h
-            except Exception:
-                Score._notepoints_img = None
-        if Score._board_img is None:
-            try:
-                raw = pygame.image.load(join('data', 'board.png')).convert_alpha()
-                bw, bh = raw.get_size()
-                # Board is taller than notepoints — it also covers the distance text row
-                board_h = Score.HUD_H + 34
-                Score._board_img = pygame.transform.smoothscale(raw, (Score.HUD_W, board_h))
-                Score.BOARD_H = board_h
-            except Exception:
-                Score._board_img = None
+        self.settings_rect = pygame.Rect(0, 0, 0, 0)
+        if Score._fill_img is None:
+            fill = pygame.image.load(join('data', 'fill.png')).convert_alpha()
+            fill = crop_to_opaque(fill)
+            Score._fill_img = pygame.transform.scale(fill, (Score.BAR_W, Score.BAR_H))
+        if Score._frame_img is None:
+            frame = pygame.image.load(join('data', 'frame.png')).convert_alpha()
+            Score._frame_img = pygame.transform.scale(frame, (Score.SPRITE_W, Score.SPRITE_H))
         if Score._font_med is None:
-            Score._font_med = _load_font(18)
+            Score._font_med = _load_font(self.SCORE_FONT_SIZE)
         if Score._font_sm is None:
-            Score._font_sm = _load_font(14)
+            Score._font_sm = _load_font(self.DIST_FONT_SIZE)
+        if Score._settings_img is None:
+            try:
+                raw_s = pygame.image.load(join('data', 'settings.png')).convert_alpha()
+                Score._settings_img = pygame.transform.scale(
+                    raw_s, (self.SETTINGS_ICON_SIZE, self.SETTINGS_ICON_SIZE))
+            except (FileNotFoundError, pygame.error):
+                surf = pygame.Surface((self.SETTINGS_ICON_SIZE, self.SETTINGS_ICON_SIZE), pygame.SRCALPHA)
+                pygame.draw.circle(surf, (200, 200, 200, 220),
+                                   (self.SETTINGS_ICON_SIZE // 2, self.SETTINGS_ICON_SIZE // 2),
+                                   self.SETTINGS_ICON_SIZE // 2 - 2)
+                pygame.draw.circle(surf, (80, 80, 80, 220),
+                                   (self.SETTINGS_ICON_SIZE // 2, self.SETTINGS_ICON_SIZE // 2), 6)
+                Score._settings_img = surf
 
     def add_score(self):
-        """Legacy method — kept for compatibility."""
+        """Legacy method - kept for compatibility."""
         pass
 
     def add_note_points(self, value, bird_x=0, bird_y=0):
@@ -274,60 +299,52 @@ class Score:
         self.floating_texts = [ft for ft in self.floating_texts if not ft.dead]
 
     def draw(self, window):
-        """Draw the meter HUD using board.png + notepoints.png."""
-        global BEST_SCORE
-        hud_x, hud_y = 16, 16
-        board_h = self._board_img.get_height() if self._board_img else self.HUD_H + 34
+        """Draw the meter from the original fill and frame sprites."""
+        hud_x = 24
+        hud_y = 18
 
-        # --- pill-shaped drop shadow that matches board.png ---
-        shw = self.HUD_W + 8
-        shh = board_h + 8
-        shadow_surf = pygame.Surface((shw, shh), pygame.SRCALPHA)
-        pygame.draw.rect(shadow_surf, (0, 0, 0, 65),
-                         (0, 0, shw, shh), border_radius=shh // 2)
-        window.blit(shadow_surf, (hud_x + 3, hud_y + 5))
+        hud = pygame.Surface((self.HUD_W, self.HUD_H), pygame.SRCALPHA)
+        fill_x = self.BAR_X_OFF
+        fill_y = self.BAR_Y_OFF
 
-        # --- board.png (full-height background pill) ---
-        if self._board_img:
-            window.blit(self._board_img, (hud_x, hud_y))
+        hud.blit(self._frame_img, (0, 0))
 
-        # --- progress fill — hard-clipped so it cannot overflow ---
-        # bar rect targets the interior of notepoints dotted box
-        bar_x = hud_x + int(self.HUD_W * 0.28)
-        bar_y = hud_y + int(self.HUD_H * 0.12)
-        bar_w = int(self.HUD_W * 0.70)
-        bar_h = int(self.HUD_H * 0.76)
         fill_ratio = min(1.0, self.note_points / self.GOAL)
-        fill_w = max(0, int(bar_w * fill_ratio))
-
-        old_clip = window.get_clip()
-        window.set_clip(pygame.Rect(bar_x, bar_y, bar_w, bar_h))
+        fill_w = max(0, int(self.BAR_W * fill_ratio))
+        if self.note_points > 0:
+            fill_w = max(fill_w, self.BAR_H // 2)
         if fill_w > 0:
-            pygame.draw.rect(window, (150, 70, 200),
-                             (bar_x, bar_y, fill_w, bar_h))
-        window.set_clip(old_clip)
+            fill_surf = pygame.Surface((fill_w, self.BAR_H), pygame.SRCALPHA)
+            fill_surf.blit(self._fill_img, (0, 0))
+            hud.blit(fill_surf, (fill_x, fill_y))
 
-        # --- notepoints.png on top — its border frames the fill perfectly ---
-        if self._notepoints_img:
-            window.blit(self._notepoints_img, (hud_x, hud_y))
-
-        # --- points text centred on bar ---
         pts_text = f'{self.note_points}/{self.GOAL}'
         tw, th = self._font_med.size(pts_text)
-        cx = bar_x + bar_w // 2 - tw // 2
-        cy = bar_y + bar_h // 2 - th // 2
+        cx = fill_x + self.BAR_W // 2 - tw // 2
+        cy = fill_y + self.BAR_H // 2 - th // 2
         pts_shad = self._font_med.render(pts_text, True, (50, 50, 50))
         pts_surf = self._font_med.render(pts_text, True, (255, 255, 255))
-        window.blit(pts_shad, (cx + 1, cy + 1))
-        window.blit(pts_surf, (cx, cy))
+        hud.blit(pts_shad, (cx + 1, cy + 1))
+        hud.blit(pts_surf, (cx, cy))
 
-        # --- distance text inside the board area below the notepoints image ---
         dist_m = self.distance // 60
-        dist_text = f'{dist_m}m'
-        _draw_shadow_text(window, self._font_sm, dist_text, (210, 185, 255),
-                          hud_x + 10, hud_y + self.HUD_H + 6)
+        dist_text = f'Distance: {dist_m}m'
+        dist_surf = self._font_sm.render(dist_text, True, (255, 255, 255))
+        hud.blit(dist_surf, (self.DIST_TEXT_X, self.DIST_TEXT_Y))
 
-        # --- floating '+N' labels ---
+        settings_hud_x = self.DIST_TEXT_X
+        settings_hud_y = self.DIST_TEXT_Y + dist_surf.get_height() + 8
+        hud.blit(self._settings_img, (settings_hud_x, settings_hud_y))
+
+        window.blit(hud, (hud_x, hud_y))
+
+        self.settings_rect = pygame.Rect(
+            hud_x + settings_hud_x,
+            hud_y + settings_hud_y,
+            self.SETTINGS_ICON_SIZE,
+            self.SETTINGS_ICON_SIZE
+        )
+
         for ft in self.floating_texts:
             ft.draw(window)
 
@@ -347,34 +364,52 @@ class MusicNote:
     """A collectible musical note that lives inside a pipe gap."""
 
     NOTE_SIZE = 38
-    _img = None
-    _powerless_img = None
+    _sprites = None  # List of (img, powerless_img, mask) — one per sprite in the sheet
+
+    @classmethod
+    def _load_sprites(cls):
+        """Slice the 3x3 note sprite sheet into 9 individual sprites.
+        Each cell is cropped to its opaque bounding box so the note
+        fills the full NOTE_SIZE area instead of appearing as a tiny speck.
+        """
+        raw = pygame.image.load(join('data', 'note.png')).convert_alpha()
+        sheet_w, sheet_h = raw.get_size()
+        cols, rows = 3, 3
+        cell_w = sheet_w // cols
+        cell_h = sheet_h // rows
+        cls._sprites = []
+        for row in range(rows):
+            for col in range(cols):
+                cell = pygame.Surface((cell_w, cell_h), pygame.SRCALPHA)
+                cell.blit(raw, (0, 0), (col * cell_w, row * cell_h, cell_w, cell_h))
+                bounds = cell.get_bounding_rect()
+                if bounds.width > 0 and bounds.height > 0:
+                    cropped = pygame.Surface((bounds.width, bounds.height), pygame.SRCALPHA)
+                    cropped.blit(cell, (0, 0), bounds)
+                    scaled = pygame.transform.smoothscale(cropped, (cls.NOTE_SIZE, cls.NOTE_SIZE))
+                else:
+                    scaled = pygame.transform.smoothscale(cell, (cls.NOTE_SIZE, cls.NOTE_SIZE))
+                powerless = make_powerless_surface(scaled)
+                mask = pygame.mask.from_surface(scaled)
+                cls._sprites.append((scaled, powerless, mask))
 
     def __init__(self, x_pos, y_pos):
-        if MusicNote._img is None:
-            raw = pygame.image.load(join('data', 'note.png')).convert_alpha()
-            MusicNote._img = pygame.transform.scale(raw, (self.NOTE_SIZE, self.NOTE_SIZE))
-            MusicNote._powerless_img = make_powerless_surface(MusicNote._img)
+        if MusicNote._sprites is None:
+            MusicNote._load_sprites()
 
-        self.img = MusicNote._img
-        self.powerless_img = MusicNote._powerless_img
+        chosen = MusicNote._sprites[randrange(len(MusicNote._sprites))]
+        self.img, self.powerless_img, self._mask = chosen
         self.x_pos = float(x_pos)
         self.y_pos = float(y_pos)
         self.collected = False
         self.point_value = randrange(3, 6)
         self.velocity = Pipe.velocity
 
-        margin = 6
-        self.rect = pygame.Rect(
-            int(self.x_pos) + margin,
-            int(self.y_pos) + margin,
-            self.NOTE_SIZE - margin * 2,
-            self.NOTE_SIZE - margin * 2,
-        )
+        self.rect = self.img.get_rect(topleft=(int(self.x_pos), int(self.y_pos)))
 
     def move(self):
         self.x_pos -= self.velocity
-        self.rect.x = int(self.x_pos) + 6
+        self.rect.x = int(self.x_pos)
 
     @property
     def off_screen(self):
@@ -384,13 +419,13 @@ class MusicNote:
         if self.collected:
             return False
 
-        bird_rect = pygame.Rect(
-            bird.x_pos,
-            round(bird.y_pos),
-            bird.img.get_width(),
-            bird.img.get_height()
-        )
-        if self.rect.colliderect(bird_rect):
+        bird_rect = bird.img.get_rect(topleft=(int(bird.x_pos), round(bird.y_pos)))
+        if not self.rect.colliderect(bird_rect):
+            return False
+
+        bird_mask = pygame.mask.from_surface(bird.img)
+        offset = (self.rect.x - bird_rect.x, self.rect.y - bird_rect.y)
+        if bird_mask.overlap(self._mask, offset):
             self.collected = True
             return self.point_value
         return False
@@ -407,18 +442,19 @@ class MusicNote:
 
 
 class DynamicLighting:
-    """Manage the level's color returning as the run progresses."""
+    """Manage the level's color returning as notes are collected."""
 
     def __init__(self):
         self.progress = 0.0
-        self.start_x = 0
-        self.end_x = 12000
         self.start_color = 0
         self.full_color = 255
 
-    def update(self, progress_x):
-        distance = max(0, progress_x - self.start_x)
-        self.progress = min(1.0, distance / self.end_x)
+    def update(self, note_points, goal):
+        if goal <= 0:
+            self.progress = 1.0
+            return
+
+        self.progress = max(0.0, min(1.0, note_points / goal))
 
     def get_alpha(self):
         eased_progress = self.progress * self.progress * (3 - 2 * self.progress)
@@ -492,6 +528,7 @@ class Pipe:
     BOTTOM_BUILDING_IMG = world['building_bottom']
     BOTTOM_BUILDING_POWERLESS_IMG = world['building_bottom_powerless']
     velocity = 6
+    SEGMENT_WIDTH = 1564
 
     def __init__(self, x_pos):
         self.x_pos = x_pos
@@ -512,8 +549,8 @@ class Pipe:
 
     def set_height(self):
         """Initialize one skyline segment with top and bottom buildings."""
-        min_building_height = int(WINDOW_HEIGHT * 0.14)
-        max_building_height = int(WINDOW_HEIGHT * 0.43)
+        min_building_height = int(WINDOW_HEIGHT * 0.30)
+        max_building_height = int(WINDOW_HEIGHT * 0.60)
         gap_size = PIPE_GAP + randrange(-35, 36)
         available_height = WINDOW_HEIGHT - gap_size
 
@@ -525,19 +562,16 @@ class Pipe:
             bottom_height = randrange(bottom_min, bottom_max + 1)
         top_height = max(min_building_height, available_height - bottom_height)
 
-        bottom_source_width, bottom_source_height = self.BOTTOM_BUILDING_IMG.get_size()
-        bottom_target_width = max(1, int(bottom_height * bottom_source_width / bottom_source_height))
-        top_source_width, top_source_height = self.TOP_BUILDING_IMG.get_size()
-        top_target_width = max(1, int(top_height * top_source_width / top_source_height))
+        target_width = self.SEGMENT_WIDTH
 
         self.bottom_building, self.bottom_building_powerless = self._make_building(
-            self.BOTTOM_BUILDING_IMG, bottom_target_width, bottom_height)
-        self.width = self.bottom_building.get_width()
+            self.BOTTOM_BUILDING_IMG, target_width, bottom_height)
+        self.width = target_width
         self.height = self.bottom_building.get_height()
         self.bottom_y = WINDOW_HEIGHT - self.height
 
         self.top_building, self.top_building_powerless = self._make_building(
-            self.TOP_BUILDING_IMG, top_target_width, top_height, flip_vertical=True)
+            self.TOP_BUILDING_IMG, target_width, top_height, flip_vertical=True)
         self.bottom_mask = pygame.mask.from_surface(self.bottom_building)
         self.top_mask = pygame.mask.from_surface(self.top_building)
         self.top_height = self.top_building.get_height()
@@ -584,7 +618,7 @@ class Pipe:
         if self.note:
             self.note.move()
 
-    def draw(self, window, color_amount=255):
+    def draw(self, window, color_amount=255, note_color_amount=255):
         """draw skyline buildings in screen
 
         Args:
@@ -605,7 +639,7 @@ class Pipe:
             color_amount
         )
         if self.note:
-            self.note.draw(window, color_amount)
+            self.note.draw(window, note_color_amount)
 
     def check_note_collect(self, bird) -> bool:
         if self.note:
@@ -657,6 +691,8 @@ class Bird:
     crashed = False
     FLAPS_ANIMATION_TIME = 5
     ROTATE_VEL = 10
+    MAX_TILT_UP = 25
+    MAX_TILT_DOWN = -45
     JUMP_STRENGTH = -9.6
     ASCENT_GRAVITY = 2
     DESCENT_GRAVITY = 1.25
@@ -690,8 +726,13 @@ class Bird:
         self.tick = 0
 
     def tilt_bird(self, displacement):
-        """No tilt."""
-        self.tilt = 0
+        """Tilt upward while rising, tilt downward while falling."""
+        if displacement < 0:
+            # Rising: quickly tilt up to a cap
+            self.tilt = min(self.MAX_TILT_UP, self.tilt + self.ROTATE_VEL)
+        else:
+            # Falling: gradually tilt down to a cap
+            self.tilt = max(self.MAX_TILT_DOWN, self.tilt - self.ROTATE_VEL)
 
     def check_crashed(self):
         """check for crashed bird, if it falls or goes up a lot
@@ -727,7 +768,19 @@ class Bird:
 
         # Update ribbon trail if it exists
         if self.ribbon:
-            self.ribbon.update(self.x_pos, self.y_pos, self.img.get_width(), self.img.get_height())
+            width = self.img.get_width()
+            height = self.img.get_height()
+            center = pygame.math.Vector2(self.x_pos + width / 2, self.y_pos + height / 2)
+            tail_base = pygame.math.Vector2(self.x_pos + (width * 0.25), self.y_pos + (height / 2))
+            rotated_tail = center + (tail_base - center).rotate(-self.tilt)
+            self.ribbon.update(
+                self.x_pos,
+                self.y_pos,
+                width,
+                height,
+                ribbon_x=rotated_tail.x,
+                ribbon_y=rotated_tail.y,
+            )
 
     def set_state(self):
         """Single-sprite character: no animation frames."""
@@ -735,15 +788,20 @@ class Bird:
         self.powerless_img = bird_images['idle_powerless']
 
     def draw(self, window, color_amount=255):
-        """Draw the bird (single sprite, no rotation)."""
+        """Draw the bird with tilt animation (rotate on ascent/descent)."""
         self.set_state()
-        blit_color_restored(
-            window,
-            self.img,
-            self.powerless_img,
-            (self.x_pos, self.y_pos),
-            color_amount
-        )
+
+        # Build the final colored sprite (powerless base + color fade-in), then rotate it.
+        rendered = self.powerless_img.copy()
+        if color_amount > 0:
+            color_layer = self.img.copy()
+            color_layer.set_alpha(color_amount)
+            rendered.blit(color_layer, (0, 0))
+
+        rotated = pygame.transform.rotate(rendered, self.tilt)
+        rect = rotated.get_rect(center=(self.x_pos + self.img.get_width() / 2,
+                                        self.y_pos + self.img.get_height() / 2))
+        window.blit(rotated, rect.topleft)
 
 
 class Background:
